@@ -59,6 +59,18 @@ function makeTerminal(status: 'completed' | 'failed' | 'cancelled', id = `job-${
   }
 }
 
+function makeEnqueued(status: 'pending' | 'delayed', scheduleId: string | null = 's1'): JobSnapshot {
+  return {
+    ...makeTerminal('completed', `job-${status}`),
+    status,
+    scheduleId,
+    startedAt: null,
+    finishedAt: null,
+    output: null,
+    error: null
+  }
+}
+
 function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSettledEvent<AgentTaskInput> {
   return {
     jobId: 'job-1',
@@ -120,6 +132,20 @@ describe('AgentTaskJobHandler', () => {
           reuseRevision: 0
         })
       ).toBe('agent:a-42')
+    })
+  })
+
+  describe('onEnqueued', () => {
+    it.each(['pending', 'delayed'] as const)('publishes a scheduled %s job to open task lists', (status) => {
+      agentTaskJobHandler.onEnqueued?.(makeEnqueued(status))
+
+      expect(vi.mocked(agentTaskService.notifyReadModelChange).mock.calls).toEqual([[['s1']]])
+    })
+
+    it('does not publish an ad-hoc enqueued job without a schedule', () => {
+      agentTaskJobHandler.onEnqueued?.(makeEnqueued('pending', null))
+
+      expect(agentTaskService.notifyReadModelChange).not.toHaveBeenCalled()
     })
   })
 

@@ -52,6 +52,10 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
    */
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
 
+  onEnqueued(snapshot) {
+    if (snapshot.scheduleId) agentTaskService.notifyReadModelChange([snapshot.scheduleId])
+  },
+
   async execute(ctx) {
     // The row is already `running` here; publish so open task lists leave the
     // previous run's state. JobContext carries no scheduleId — resolve the row.
