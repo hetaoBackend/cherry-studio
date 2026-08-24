@@ -31,6 +31,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
@@ -974,6 +975,100 @@ describe('JobManager integration', () => {
       expect(childEvent.metadata).toEqual({ origin: 'test', phase: 'done' })
       expect(settledEvents[0].parentId).toBeNull()
 
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('onEnqueued handler lifecycle', () => {
+    it('observes each newly-created pending or delayed row, but not an idempotency hit', async () => {
+      const snapshots: JobSnapshot[] = []
+      const handler: JobHandler<SlowInput> = {
+        ...makeSlowHandler('abandon'),
+        onEnqueued(snapshot: JobSnapshot) {
+          snapshots.push(snapshot)
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['enqueued.lifecycle', handler]]
+      })
+
+      const pending = jobManager.enqueue(
+        'enqueued.lifecycle' as never,
+        { message: 'now', sleepMs: 50 } as never,
+        { idempotencyKey: 'same-active-job' } as never
+      )
+      const duplicate = jobManager.enqueue(
+        'enqueued.lifecycle' as never,
+        { message: 'duplicate' } as never,
+        { idempotencyKey: 'same-active-job' } as never
+      )
+      const delayed = jobManager.enqueue(
+        'enqueued.lifecycle' as never,
+        { message: 'later' } as never,
+        { scheduledAt: Date.now() + 60_000 } as never
+      )
+
+      expect(duplicate.id).toBe(pending.id)
+      expect(snapshots.map(({ id, status }) => ({ id, status }))).toEqual([
+        { id: pending.id, status: 'pending' },
+        { id: delayed.id, status: 'delayed' }
+      ])
+
+      await pending.finished
+      await jobManager.cancel(delayed.id)
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('runs only after an enqueueTx row commits and can be re-read', async () => {
+      const snapshots: JobSnapshot[] = []
+      const persistedStatuses: JobSnapshot['status'][] = []
+      const handler: JobHandler<SlowInput> = {
+        ...makeSlowHandler('abandon'),
+        onEnqueued(snapshot: JobSnapshot) {
+          snapshots.push(snapshot)
+          persistedStatuses.push(jobService.getById(snapshot.id)?.status ?? 'cancelled')
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['enqueued.tx', handler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          handle = jobManager.enqueueTx(tx, 'enqueued.tx' as never, { message: 'atomic' } as never)
+          expect(snapshots).toHaveLength(0)
+        },
+        { behavior: 'immediate' }
+      )
+      expect(snapshots).toHaveLength(0)
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(snapshots.map(({ id, status }) => ({ id, status }))).toEqual([{ id: handle.id, status: 'pending' }])
+      expect(persistedStatuses).toEqual(['pending'])
+
+      await handle.finished
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('isolates callback failures from enqueue and execution', async () => {
+      const handler: JobHandler<SlowInput> = {
+        ...makeSlowHandler('abandon'),
+        onEnqueued() {
+          throw new Error('observer-failed')
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['enqueued.throwing', handler]]
+      })
+
+      const handle = jobManager.enqueue('enqueued.throwing' as never, { message: 'still-runs' } as never)
+
+      await expect(handle.finished).resolves.toMatchObject({ status: 'completed' })
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
     })

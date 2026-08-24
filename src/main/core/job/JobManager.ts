@@ -961,6 +961,7 @@ export class JobManager extends BaseService {
 
     const snapshot = jobService.create(insertRow)
     this.publishState(snapshot)
+    this.notifyEnqueued(handler, snapshot)
     const handle = this.handleFor(snapshot)
 
     if (snapshot.status === 'pending') {
@@ -1039,6 +1040,7 @@ export class JobManager extends BaseService {
           return
         }
         this.publishState(persisted)
+        this.notifyEnqueued(handler, persisted)
         logger.info('Job enqueued (tx)', {
           id: persisted.id,
           type,
@@ -2370,6 +2372,20 @@ export class JobManager extends BaseService {
 
   private isTerminal(status: JobSnapshot['status']): boolean {
     return status === 'completed' || status === 'failed' || status === 'cancelled'
+  }
+
+  /** Notify business handlers after a newly-created Job row is durable. */
+  private notifyEnqueued(handler: JobHandler, snapshot: JobSnapshot): void {
+    if (!handler.onEnqueued) return
+    try {
+      handler.onEnqueued(snapshot)
+    } catch (err) {
+      logger.warn('handler.onEnqueued threw — ignoring', {
+        jobId: snapshot.id,
+        type: snapshot.type,
+        err: (err as Error).message
+      })
+    }
   }
 
   /** Push a job snapshot to the cross-window shared cache (renderer hooks read this). */

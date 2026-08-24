@@ -88,6 +88,11 @@ export interface JobHandler<TPayload = unknown> {
   defaultTimeoutMs?: number
   /** Grace period to wait for handler to react to AbortSignal after cancel. Defaults to 30000ms. */
   cancelTimeoutMs?: number
+  /**
+   * Optional. Called synchronously after a newly-created Job row is durable.
+   * Errors are caught and logged; idempotency hits do not invoke it.
+   */
+  onEnqueued?(snapshot: JobSnapshot): void
   /** Execute one job attempt. Throw to fail; reject with AbortError to cancel. */
   execute(ctx: JobContext<TPayload>): Promise<unknown>
   /** Optional. Called when a schedule fire was missed. */
