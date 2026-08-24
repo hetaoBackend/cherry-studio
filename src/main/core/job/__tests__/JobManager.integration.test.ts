@@ -990,7 +990,7 @@ describe('JobManager integration', () => {
         }
       }
       const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['enqueued.lifecycle', handler]]
+        handlers: [['enqueued.lifecycle', handler as JobHandler]]
       })
 
       const pending = jobManager.enqueue(
@@ -1032,7 +1032,7 @@ describe('JobManager integration', () => {
         }
       }
       const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['enqueued.tx', handler]]
+        handlers: [['enqueued.tx', handler as JobHandler]]
       })
       const db = MockMainDbServiceExport.dbService.getDb() as DbType
 
@@ -1063,7 +1063,7 @@ describe('JobManager integration', () => {
         }
       }
       const { scheduler, jobManager } = await bootstrapManager({
-        handlers: [['enqueued.throwing', handler]]
+        handlers: [['enqueued.throwing', handler as JobHandler]]
       })
 
       const handle = jobManager.enqueue('enqueued.throwing' as never, { message: 'still-runs' } as never)
