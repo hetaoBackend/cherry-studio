@@ -544,6 +544,7 @@
   "backup.confirm.button": "Select Backup Location",
   "backup.content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
   "backup.error.active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again.",
+  "backup.error.webdav_tls_certificate": "Could not verify the WebDAV server's TLS certificate. If the server uses a self-signed or private-CA certificate, enable 'Allow Self-Signed Certificates' in Settings → Data → WebDAV (this lowers transport security).",
   "backup.progress.completed": "Backup completed",
   "backup.progress.compressing": "Compressing files...",
   "backup.progress.copying_database": "Copying database...",
@@ -3557,6 +3558,8 @@
   "settings.data.v1_remigration.final_retained": "Your original v1 data will be kept and imported again after restart.",
   "settings.data.v1_remigration.next": "Next",
   "settings.data.v1_remigration.title": "Rerun v1 Data Migration",
+  "settings.data.webdav.allowSelfSignedTls.help": "Off by default: the WebDAV server's TLS certificate is verified. Enable only for servers with self-signed or private-CA certificates — a man-in-the-middle could then intercept your WebDAV password and full backup data.",
+  "settings.data.webdav.allowSelfSignedTls.title": "Allow Self-Signed Certificates",
   "settings.data.webdav.autoSync.label": "Auto Backup",
   "settings.data.webdav.autoSync.off": "Off",
   "settings.data.webdav.backup.button": "Backup to WebDAV",
@@ -49776,4 +49779,5 @@
   }
 >>>>>>> Current commit: fix(security): address cherry-review findings on backup transport hardening
 >>>>>>> Current commit: fix(security): address cherry-review findings on backup transport hardening
+>>>>>>> theirs
 }
